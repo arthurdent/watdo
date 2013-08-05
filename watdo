@@ -1,40 +1,182 @@
 #!/bin/bash
-
 # tweet while u hack
 
-# User variables
-oauth_token="17993005-8aPbawsYZF1kprEsDXFVIUy3ghCSPudC3SEu8YdwE"
-oauth_token_secret="Letj5xDTNFqlpvQQbY6LIFQdKPFs3LdQlkZCkfzT9U"
+# Dependencies: curl, perl, cut, openssl, base64
 
-# Static variables
+[[ -e "$HOME/.config/watdo" ]] && source "$HOME/.config/watdo"
+
+# Final variables
 oauth_consumer_key="f0SI6q2G4qFnEDS1o5kjGw"
-oauth_signature=""
 oauth_signature_method="HMAC-SHA1"
 oauth_version="1.0"
 
+# Variables with forced global scope
 oauth_nonce=""
+oauth_timestamp=""
+
+# Here it is. OAuth can bite me. What a seriously dumb implementation. 
+# Protip: twitter will give you like infinity of these damn things for
+# free so if you want to spam or something then get your own.
+# If you use this one to spam, it will ban this key from legitimate use,
+# making my users sad and confused.
+# User: If you find yourself sad and confused, consider generating your own
+# OAuth Consumer Secret by applying to http://dev.twitter.com
+# You will then need to reauthorize watdo
+oauth_consumer_secret="PkWaVAkqzlbE2bbIfkl8Zbmyh6alvwekF77snqgZI"
+
+# do the thing
+main() {
+
+	if [[ ! -e "$HOME/.config/watdo" ]]; then
+		echo -e "You will now need to authorize watdo to tweet from your computer.\n"
+		authorize
+	else
+		status_update "$@"
+	fi
+
+}
+
+# Refresh the nonce
 refresh_nonce() {
 	oauth_nonce="$(md5sum <<< \"$RANDOM-$(date +%s.%N)\" | cut -d' ' -f 1)"
 }
 
-oauth_timestamp=""
+# Refresh the timestamp
 refresh_timestamp() {
 	oauth_timestamp="$(date +%s)"
 }
 
+# Refresh the nonce and timestamp
 oauth_refresh() {
 	refresh_nonce
 	refresh_timestamp
 }
 
-pe() { 
+# I call this one the Nasty Perl. 
+# This is a stripper that gives you exactly what you ask for, and nothing extra.
+# This converts non :alphanum: with hex values preceded by %
+pe() {
 	echo -n "$@" | perl -p -e 's/([^A-Za-z0-9-._~])/sprintf("%%%02X", ord($1))/seg'
 }
 
-# here it is. oauth can bite me. what a dumb implementation.
-# dont ruin it for my users. twitter will give you one for free.
-oauth_consumer_secret="PkWaVAkqzlbE2bbIfkl8Zbmyh6alvwekF77snqgZI"
+# Put stuff on The Twitter
+status_update() {
 
+	# The status you typed after ./watdo. May not be relevant in all cases
+	update_status="$@"
+
+	# The 1.1 OAuth API URL to send statuses as POST data
+	base_url="https://api.twitter.com/1.1/statuses/update.json"
+
+	# Everything below this point is magic. I honestly don't remember the steps I took to make this work.
+	# There was a lot of head scratching, yelling at documentation, acetylsalicylic acid, and caffiene ingestion.
+	oauth_refresh
+	parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_version=$oauth_version&status=$(pe $update_status)"
+	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
+	signingkey="$(pe $oauth_consumer_secret)&$(pe $oauth_token_secret)"
+	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
+	auth_header="Authorization: OAuth oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_token=\"$oauth_token\", oauth_version=\"$oauth_version\""
+
+	# Verbose output, enable if necessary.
+   	# I'm not adding a flag for this; if you're debugging, you're already modifying the source code, so just uncomment the following line for verbose output.
+	#verbose_output
+
+	# Using the magic
+	curl -H "$auth_header" --data-urlencode "status=$update_status" "$base_url"
+
+}
+
+# Authorize watdo so you can use it to tweet.
+authorize() {
+
+	if [[ ! -e "$HOME/.config/watdo" ]]; then
+		request_request_token
+	else
+		echo "Please move or delete \"$HOME/.config/watdo\" if you really want to reauthorize this application."
+	fi
+
+}
+
+# Request a request token. This is the first step in tweeting from watdo.
+request_request_token() {
+
+	# When I wrote this, only God and I understood what I was doing. 
+	# Now, only God knows.
+	# - Borrowed from Karl Weierstrass
+
+	oauth_refresh
+	
+	# The 1.1 OAuth API URL for requesting request tokens
+	base_url="https://api.twitter.com/oauth/request_token"
+	
+	# "oob" stands for Operationally Obscured Blackbox.
+	# This is the proper callback to use when writing desktop applications with OAuth.
+	# Incedentally, there is no way to write a desktop application with OAuth.
+	oauth_callback="oob"
+
+	parameterstring="oauth_callback=$oauth_callback&oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_version=$oauth_version"
+	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
+	signingkey="$(pe $oauth_consumer_secret)&" 
+	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
+
+	auth_header="Authorization: OAuth oauth_callback=\"$oauth_callback\", oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_version=\"$oauth_version\""
+
+	# Uncomment for debugging.
+	#verbose_output
+
+	tokens=$(curl -s -H "$auth_header" --data-urlencode ''  "$base_url")
+
+	oauth_request_token=$(cut -d'&' -f1 <<< "$tokens")
+	oauth_request_token_secret=$(cut -d'&' -f2 <<< "$tokens")
+	
+	echo "Go here to get your pin : https://api.twitter.com/oauth/authorize?$oauth_request_token"
+	echo -n "PIN : "
+	read pin
+
+	request_access_token "$pin" "${oauth_request_token#*=}" "${oauth_request_token_secret#*=}"
+
+}
+
+# Exchange the OAuth Request Token we just requested for an OAuth Access Token
+request_access_token() {
+	
+	oauth_refresh
+	base_url="https://api.twitter.com/oauth/access_token"
+
+	oauth_verifier="$1"
+	oauth_token="$2"
+	oauth_request_token_secret="$3"
+
+	parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_verifier=$oauth_verifier&oauth_version=$oauth_version"
+	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
+	signingkey="$(pe $oauth_consumer_secret)&$(pe $oauth_request_token_secret)" 
+	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
+
+	auth_header="Authorization: OAuth oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_token=\"$oauth_token\", oauth_verifier=\"$oauth_verifier\", oauth_version=\"$oauth_version\""
+
+	tokens=$(curl -s -v -H "$auth_header" --data-urlencode '' "$base_url")
+
+	echo "$tokens"
+
+	oauth_access_token=$(cut -d'&' -f1 <<< "$tokens")
+	oauth_access_token_secret=$(cut -d'&' -f2 <<< "$tokens")
+	oauth_user_id=$(cut -d'&' -f3 <<< "$tokens")
+	oauth_screen_name=$(cut -d'&' -f4 <<< "$tokens")
+
+	write_config "${oauth_token#*=}" "${oauth_token_secret#*=}" "${oauth_user_id#*=}" "${oauth_screen_name#*=}"
+
+}
+
+write_config() {
+
+	echo "oauth_token=\"$1\"" > "$HOME/.config/watdo"
+	echo "oauth_token_secret=\"$2\"" >> "$HOME/.config/watdo"
+	echo "oauth_user_id=\"$3\"" >> "$HOME/.config/watdo"
+	echo "oauth_screen_name=\"$4\"" >> "$HOME/.config/watdo"
+
+}
+
+# This provides verbose output (also increments i by 1).
 verbose_output() {
 	echo "oauth_consumer_key     : $oauth_consumer_key"
 	echo "oauth_nonce            : $oauth_nonce"
@@ -56,27 +198,11 @@ verbose_output() {
 	echo ""
 }
 
-status_update() {
+# do the thing
+main "$@"
 
-	oauth_refresh
-	
-	update_status="$@"
-
-	base_url="https://api.twitter.com/1.1/statuses/update.json"
-	parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_version=$oauth_version&status=$(pe $update_status)"
-
-	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
-	
-	signingkey="$(pe $oauth_consumer_secret)&$(pe $oauth_token_secret)"
-
-	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
-
-	auth_header="Authorization: OAuth oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_token=\"$oauth_token\", oauth_version=\"$oauth_version\""
-
-	verbose_output
-
-	curl -v -H "$auth_header" --data-urlencode "status=$update_status" "$base_url"
-
-}
-
-status_update ${@:1}
+# TODO:
+# * Parse urls in tweets and count them as the proper number of characters
+# * Split tweets more than 140 characters ([S]plit [C]ancel)
+# * Retrieve tweets
+# * Remove dependencies where possible.
