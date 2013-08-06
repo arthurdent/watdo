@@ -22,7 +22,7 @@ Put it in /usr/bin or add it to your $PATH in ~/.bashrc, or just run it from a d
 
 whydo?
 ------
-I'm a terminal monkey. There are really no simple command-line app for twitter. There are a few that are kludgey and hard to navigate. This one sucks less than those ones.
+I'm a terminal monkey. There is really no simple command-line app for twitter. There are a few that are kludgey and hard to navigate. This one sucks less than those ones.
 
 todo
 -----
