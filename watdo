@@ -85,7 +85,7 @@ status_update() {
 	#verbose_output
 
 	# Using the magic
-	curl -H "$auth_header" --data-urlencode "status=$update_status" "$base_url"
+	curl -H "$auth_header" --data-urlencode "status=$update_status" "$base_url" > /dev/null
 
 }
 
