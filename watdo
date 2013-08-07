@@ -30,6 +30,9 @@ main() {
 	if [[ ! -e "$HOME/.config/watdo" ]]; then
 		echo -e "You will now need to authorize watdo to tweet from your computer.\n"
 		authorize
+	elif read -t0; then
+		read -r stdin_tweet
+		status_update "$stdin_tweet"
 	else
 		status_update "$@"
 	fi
@@ -154,7 +157,7 @@ request_access_token() {
 
 	auth_header="Authorization: OAuth oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_token=\"$oauth_token\", oauth_verifier=\"$oauth_verifier\", oauth_version=\"$oauth_version\""
 
-	tokens=$(curl -s -v -H "$auth_header" --data-urlencode '' "$base_url")
+	tokens=$(curl -s -H "$auth_header" --data-urlencode '' "$base_url")
 
 	echo "$tokens"
 
