@@ -13,6 +13,8 @@ oauth_version="1.0"
 # Variables with forced global scope
 oauth_nonce=""
 oauth_timestamp=""
+noconf=""
+wrap=""
 
 # Here it is. OAuth can bite me. What a seriously dumb implementation. 
 # Protip: twitter will give you like infinity of these damn things for
@@ -30,13 +32,56 @@ main() {
 	if [[ ! -e "$HOME/.config/watdo" ]]; then
 		echo -e "You will now need to authorize watdo to tweet from your computer.\n"
 		authorize
-	elif read -t0; then
-		read -r stdin_tweet
-		status_update "$stdin_tweet"
-	else
-		status_update "$@"
 	fi
 
+	# Flags
+	while :
+	do
+		case $1 in
+			-h | --help | -\?)
+				watdo_help
+				exit 0;
+				;;
+			-n | --no-confirm)
+				# Assume true for all confirmations.
+				noconf="true"
+				shift
+				;;
+			-f | --false)
+				# Assume false for all confirmations.
+				noconf="false"
+				shift
+				;;
+			-w | --wrap)
+				# Multiple tweets for greater than 140 characters.
+				# Overrides '--false'.
+				wrap="true"
+				shift
+				;;
+			--)
+				shift
+				break
+				;;
+			-*)
+				echo "Ignoring unknown option: \"$1\"" >&2
+				shift
+				;;
+			*)
+				# default, tweet.
+				if read -t0; then
+					read -r stdin_tweet
+					status_update "$stdin_tweet"
+				else
+					status_update "$@"
+				fi
+				;;
+		esac
+	done
+
+}
+
+watdo_help() {
+	:
 }
 
 # Refresh the nonce
@@ -85,7 +130,7 @@ status_update() {
 	#verbose_output
 
 	# Using the magic
-	curl -H "$auth_header" --data-urlencode "status=$update_status" "$base_url" > /dev/null
+	curl -s -H "$auth_header" --data-urlencode "status=$update_status" "$base_url" > /dev/null
 
 }
 

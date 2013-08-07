@@ -13,7 +13,9 @@ watdo?
 howdo?
 ------
 
-./watdo "Hey I'm tweeting!"
+	$ ./watdo "Hey, I'm tweeting!"
+	$ ./watdo <<< "Hey, I'm tweeting!"
+	$ echo "Hey, I'm tweeting!" | ./watdo
 
 wheredo?
 --------
