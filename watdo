@@ -9,12 +9,14 @@
 oauth_consumer_key="f0SI6q2G4qFnEDS1o5kjGw"
 oauth_signature_method="HMAC-SHA1"
 oauth_version="1.0"
+watdo_version="Watdo 0.1.1a"
 
 # Variables with forced global scope
 oauth_nonce=""
 oauth_timestamp=""
 noconf=""
 wrap=""
+verbosity=""
 
 # Here it is. OAuth can bite me. What a seriously dumb implementation. 
 # Protip: twitter will give you like infinity of these damn things for
@@ -47,24 +49,33 @@ main() {
 				noconf="true"
 				shift
 				;;
-			-f | --false)
-				# Assume false for all confirmations.
-				noconf="false"
-				shift
-				;;
 			-w | --wrap)
 				# Multiple tweets for greater than 140 characters.
 				# Overrides '--false'.
 				wrap="true"
 				shift
 				;;
-			--)
+			-v | --verbose)
+				# Lots of output
+				verbosity="verbose"
+				shift
+				;;
+			-s | --silent)
+				# No output, overrides -v
+				verbosity="silent"
+				shift
+				;;
+			-V | --version)
+				echo "$watdo_version"
+				exit 0
+				;;
+			--) # End of flags
 				shift
 				break
 				;;
 			-*)
-				echo "Ignoring unknown option: \"$1\"" >&2
-				shift
+				echo "Unknown option: \"$1\"" >&2
+				exit 1
 				;;
 			*)
 				# default, tweet.
@@ -81,7 +92,19 @@ main() {
 }
 
 watdo_help() {
-	:
+	echo "Usage: ./watdo [OPTION]... [TWEET]"
+	echo "Tweet while you hack."
+	echo ""
+	echo " -w, --wrap            automatically split tweets over 140 characters"
+	echo " -n, --no-confirm      assume true for all confirmations"
+	echo ""
+	echo " -v, --verbose         verbose output"
+	echo " -s, --silent          no output at all"
+	echo ""
+	echo " -h, --help            display this help output and exit"
+	echo " -V, --version         display the version and exit"
+	echo ""
+	echo "Report bugs on Github: https://github.com/arthurdent/watdo"
 }
 
 # Refresh the nonce
