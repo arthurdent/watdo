@@ -1,22 +1,22 @@
 #!/bin/bash
 # tweet while u hack
 
+# Please report bugs here: https://github.com/arthurdent/watdo
+
 # Dependencies: curl, perl, cut, openssl, base64
 
 [[ -e "$HOME/.config/watdo" ]] && source "$HOME/.config/watdo"
 
 # Final variables
+watdo_version="Watdo 0.1.1a"
 oauth_consumer_key="f0SI6q2G4qFnEDS1o5kjGw"
 oauth_signature_method="HMAC-SHA1"
 oauth_version="1.0"
-watdo_version="Watdo 0.1.1a"
 
 # Variables with forced global scope
 oauth_nonce=""
 oauth_timestamp=""
-noconf=""
 wrap=""
-verbosity=""
 
 # Here it is. OAuth can bite me. What a seriously dumb implementation. 
 # Protip: twitter will give you like infinity of these damn things for
@@ -31,6 +31,7 @@ oauth_consumer_secret="PkWaVAkqzlbE2bbIfkl8Zbmyh6alvwekF77snqgZI"
 # do the thing
 main() {
 
+	# App will attempt to authorize if this file is missing.
 	if [[ ! -e "$HOME/.config/watdo" ]]; then
 		echo -e "You will now need to authorize watdo to tweet from your computer.\n"
 		authorize
@@ -40,51 +41,40 @@ main() {
 	while :
 	do
 		case $1 in
-			-h | --help | -\?)
-				watdo_help
-				exit 0;
+			-A | --authorize) # Gotta do this to post with watdo
+				authorize
+				exit 0
 				;;
-			-n | --no-confirm)
-				# Assume true for all confirmations.
-				noconf="true"
-				shift
-				;;
-			-w | --wrap)
-				# Multiple tweets for greater than 140 characters.
-				# Overrides '--false'.
+			-w | --wrap) # Multiple tweets if > 140 chars
 				wrap="true"
 				shift
 				;;
-			-v | --verbose)
-				# Lots of output
-				verbosity="verbose"
+			-n | --no-wrap) # Cut off tweet after 140 chars
+				wrap="false"
 				shift
 				;;
-			-s | --silent)
-				# No output, overrides -v
-				verbosity="silent"
-				shift
-				;;
-			-V | --version)
+			-V | --version) # Check the version
 				echo "$watdo_version"
 				exit 0
 				;;
-			--) # End of flags
-				shift
-				break
+			-h | --help | -\?) # Help info
+				watdo_help
+				exit 0
 				;;
-			-*)
+			-*) # Unknown flag
 				echo "Unknown option: \"$1\"" >&2
 				exit 1
 				;;
-			*)
-				# default, tweet.
+			*) # The tweet
 				if read -t0; then
 					read -r stdin_tweet
 					status_update "$stdin_tweet"
-				else
+				elif [[ -n "$@" ]]; then
 					status_update "$@"
+				else
+					watdo_help
 				fi
+				exit 0
 				;;
 		esac
 	done
@@ -92,40 +82,34 @@ main() {
 }
 
 watdo_help() {
-	echo "Usage: ./watdo [OPTION]... [TWEET]"
+	echo "Usage: $0 [OPTION]... [TWEET]"
 	echo "Tweet while you hack."
 	echo ""
+	echo " -A, --authorize       force app/account reauthorization"
+	echo ""
 	echo " -w, --wrap            automatically split tweets over 140 characters"
-	echo " -n, --no-confirm      assume true for all confirmations"
+	echo " -n, --no-wrap         cut off tweet at 140 characters"
 	echo ""
-	echo " -v, --verbose         verbose output"
-	echo " -s, --silent          no output at all"
-	echo ""
-	echo " -h, --help            display this help output and exit"
 	echo " -V, --version         display the version and exit"
+	echo " -h, --help            display this help output and exit"
 	echo ""
+	echo "Watdo is released under GPLv3"
 	echo "Report bugs on Github: https://github.com/arthurdent/watdo"
-}
-
-# Refresh the nonce
-refresh_nonce() {
-	oauth_nonce="$(md5sum <<< \"$RANDOM-$(date +%s.%N)\" | cut -d' ' -f 1)"
-}
-
-# Refresh the timestamp
-refresh_timestamp() {
-	oauth_timestamp="$(date +%s)"
 }
 
 # Refresh the nonce and timestamp
 oauth_refresh() {
-	refresh_nonce
-	refresh_timestamp
+	
+	# Refresh the nonce
+	oauth_nonce="$(md5sum <<< \"$RANDOM-$(date +%s.%N)\" | cut -d' ' -f 1)"
+	
+	# Refresh the timestamp
+	oauth_timestamp="$(date +%s)"
+
 }
 
-# I call this one the Nasty Perl. 
-# This is a stripper that gives you exactly what you ask for, and nothing extra.
-# This converts non :alphanum: with hex values preceded by %
+# Convert non :alphanum: with hex values preceded by % (like URLs)
+# I wonder how hard it would be to do this using only bash built-ins.
 pe() {
 	echo -n "$@" | perl -p -e 's/([^A-Za-z0-9-._~])/sprintf("%%%02X", ord($1))/seg'
 }
@@ -135,32 +119,74 @@ status_update() {
 
 	# The status you typed after ./watdo. May not be relevant in all cases
 	update_status="$@"
+	
+	
 
 	# The 1.1 OAuth API URL to send statuses as POST data
 	base_url="https://api.twitter.com/1.1/statuses/update.json"
 
-	# Everything below this point is magic. I honestly don't remember the steps I took to make this work.
-	# There was a lot of head scratching, yelling at documentation, acetylsalicylic acid, and caffiene ingestion.
+	# The rest of this function involved a lot of head scratching, 
+	# yelling at documentation, acetylsalicylic acid and caffiene ingestion.
+
+	# In an attempt to save you from the same fate,
+	# I have made detailed comments here.
+
+	# Step 1 & 2.
+	# Refresh the timestamp, and the nonce.
+	# The nonce must be different every time you make a connection through OAuth.
+	# The easiest way to make a nonce is to append a random string to the date,
+	# and hash the result with md5. A simple feature to prevent replay attacks.
+	# The timestamp must be in unix epoch format. (date +%s)
 	oauth_refresh
+
+	# Step 3
+	# The parameter string is all of the parameters that make up your OAuth Signature. 
+	# you must supply this without quotes, separated by ampersands (&), alphabetical order.
+	# The parameters are the same required to make the OAuth request, minus the signature itself.
 	parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_version=$oauth_version&status=$(pe $update_status)"
+
+	# Step 4
+	# The base string is POST&<URL>&<perameter string>
+	# The URL and parameter string must be URL encoded
+	# (replace non [[:alphanum:]] with %encoded
 	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
+
+	# Step 5
+	# The signing key is the apps (not users) consumer secret,
+	# and the OAuth token secret, which is blank in this case.
 	signingkey="$(pe $oauth_consumer_secret)&$(pe $oauth_token_secret)"
+
+	# Step 6: 
+	# Now sha1 the base string using the signing key and base64 the results.
 	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
+
+	# Step 7: Authorization header
+	# Now you must create an authorization header. This is NOT POST data.
+	# This must start with "Authorization: OAuth"
+	# followed by comma separated keys, quote encapsulated values, alpha-sorted.
+	# The required key/value for any request can be found here: 
+	# http://oauth.net/core/1.0/#anchor9
+	# Be sure to include the signature in this part of the request.
 	auth_header="Authorization: OAuth oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_token=\"$oauth_token\", oauth_version=\"$oauth_version\""
 
-	# Verbose output, enable if necessary.
-   	# I'm not adding a flag for this; if you're debugging, you're already modifying the source code, so just uncomment the following line for verbose output.
+	# Step 8: Pray.
+	# Pray that you did every single one of those things correctly,
+	# because chances are, if you made a single mistake, you probably made five.
+
+	# Debug output. Display your shortcomings for all to see.
 	#verbose_output
 
+	# Step 9: Mail off your masterpiece.
 	# Using the magic
 	curl -s -H "$auth_header" --data-urlencode "status=$update_status" "$base_url" > /dev/null
+	echo "Tweet posted: $update_status"
 
 }
 
 # Authorize watdo so you can use it to tweet.
 authorize() {
 
-	if [[ ! -e "$HOME/.config/watdo" ]]; then
+	if [[ ! -e "$HOME/.config/watdo" ]] || [[ "$noconf" == "true" ]] ; then
 		request_request_token
 	else
 		echo "Please move or delete \"$HOME/.config/watdo\" if you really want to reauthorize this application."
@@ -171,18 +197,18 @@ authorize() {
 # Request a request token. This is the first step in tweeting from watdo.
 request_request_token() {
 
+	# This is the quote that accurately somes up this project:
 	# When I wrote this, only God and I understood what I was doing. 
 	# Now, only God knows.
-	# - Borrowed from Karl Weierstrass
+	# - Karl Weierstrass
 
 	oauth_refresh
 	
 	# The 1.1 OAuth API URL for requesting request tokens
 	base_url="https://api.twitter.com/oauth/request_token"
 	
-	# "oob" stands for Operationally Obscured Blackbox.
 	# This is the proper callback to use when writing desktop applications with OAuth.
-	# Incedentally, there is no way to write a desktop application with OAuth.
+	# Incedentally, there is no proper way to write a desktop application with OAuth.
 	oauth_callback="oob"
 
 	parameterstring="oauth_callback=$oauth_callback&oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_version=$oauth_version"
@@ -258,14 +284,14 @@ verbose_output() {
 	echo "oauth_version          : $oauth_version"
 	echo "---"
 	echo "oauth_token_secret     : $oauth_token_secret"
-	echo "consumer_secret        : $oauth_consumer_secret"
 	echo "status                 : $update_status"
 	echo "base_url               : $base_url"
-	echo "paramstring : $parameterstring"
-	echo "basestring  : $basestring"
-	echo "signingkey  : $signingkey"
-	echo "oauth_sign  : $oauth_signature"
-	echo "auth_header : $auth_header"
+	echo "---"
+	echo "paramstring            : $parameterstring"
+	echo "basestring             : $basestring"
+	echo "signingkey             : $signingkey"
+	echo "oauth_sign             : $oauth_signature"
+	echo "auth_header            : $auth_header"
 	echo ""
 }
 
@@ -273,7 +299,6 @@ verbose_output() {
 main "$@"
 
 # TODO:
-# * Parse urls in tweets and count them as the proper number of characters
-# * Split tweets more than 140 characters ([S]plit [C]ancel)
-# * Retrieve tweets
-# * Remove dependencies where possible.
+# * Count tweet length, split if > 140 chars ([S]plit [C]ancel)
+# * Parse urls in tweets and count them 20 characters.
+# * Retrieve tweets from newsfeed etc.

@@ -17,19 +17,21 @@ howdo?
 	$ ./watdo <<< "Hey, I'm tweeting!"
 	$ echo "Hey, I'm tweeting!" | ./watdo
 
+See also:
+
+	$ ./watdo --help
+
 wheredo?
 --------
 
-Put it in /usr/bin or add it to your $PATH in ~/.bashrc, or just run it from a directory, it'll work either way, because everything is contained in one file.
+Put it in /usr/bin or add it to your $PATH in ~/.bashrc, or just run it from a directory, it'll work from anywhere.
 
 whydo?
 ------
-I'm a terminal monkey. There is really no simple command-line app for twitter. There are a few that are kludgey and hard to navigate. This one sucks less than those ones.
+
+I'm a terminal monkey and all of the other cli twitter clients are kludgey and hard to navigate. This one aspires to suck less than the others.
 
 todo
 -----
 
-1. newsfeed
-2. remove cut as dep
-3. remove perl as dep?
-4. feature requests.
+* Display newsfeed.
