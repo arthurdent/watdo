@@ -9,7 +9,6 @@
 
 # Final variables
 watdo_version="Watdo 0.1.1a"
-oauth_consumer_key="f0SI6q2G4qFnEDS1o5kjGw"
 oauth_signature_method="HMAC-SHA1"
 oauth_version="1.0"
 
@@ -24,8 +23,9 @@ wrap=""
 # If you use this one to spam, it will ban this key from legitimate use,
 # making my users sad and confused.
 # User: If you find yourself sad and confused, consider generating your own
-# OAuth Consumer Secret by applying to http://dev.twitter.com
+# OAuth Consumer Key & Secret by applying to http://dev.twitter.com
 # You will then need to reauthorize watdo
+oauth_consumer_key="f0SI6q2G4qFnEDS1o5kjGw"
 oauth_consumer_secret="PkWaVAkqzlbE2bbIfkl8Zbmyh6alvwekF77snqgZI"
 
 # do the thing
@@ -93,7 +93,7 @@ watdo_help() {
 	echo " -V, --version         display the version and exit"
 	echo " -h, --help            display this help output and exit"
 	echo ""
-	echo "Watdo is released under GPLv3"
+	echo "$watdo_version is released under GPLv3"
 	echo "Report bugs on Github: https://github.com/arthurdent/watdo"
 }
 
@@ -129,7 +129,7 @@ status_update() {
 	# yelling at documentation, acetylsalicylic acid and caffiene ingestion.
 
 	# In an attempt to save you from the same fate,
-	# I have made detailed comments here.
+	# I have attempted a detailed explanation of OAuth
 
 	# Step 1 & 2.
 	# Refresh the timestamp, and the nonce.
@@ -142,28 +142,28 @@ status_update() {
 	# Step 3
 	# The parameter string is all of the parameters that make up your OAuth Signature. 
 	# you must supply this without quotes, separated by ampersands (&), alphabetical order.
-	# The parameters are the same required to make the OAuth request, minus the signature itself.
+	# The parameters are those required to make the OAuth request, minus the signature itself.
 	parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_version=$oauth_version&status=$(pe $update_status)"
 
 	# Step 4
 	# The base string is POST&<URL>&<perameter string>
 	# The URL and parameter string must be URL encoded
-	# (replace non [[:alphanum:]] with %encoded
+	# (replace non [[:alphanum:]] with %encoded value
 	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
 
 	# Step 5
 	# The signing key is the apps (not users) consumer secret,
-	# and the OAuth token secret, which is blank in this case.
+	# and the OAuth token secret, which does belong to the user.
 	signingkey="$(pe $oauth_consumer_secret)&$(pe $oauth_token_secret)"
 
 	# Step 6: 
-	# Now sha1 the base string using the signing key and base64 the results.
+	# Now sha1 the base string using the signing key and base64 the result.
 	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
 
 	# Step 7: Authorization header
 	# Now you must create an authorization header. This is NOT POST data.
-	# This must start with "Authorization: OAuth"
-	# followed by comma separated keys, quote encapsulated values, alpha-sorted.
+	# This header must start with "Authorization: OAuth", and cant have newlines.
+	# Follow with comma separated keys, quote encapsulated values, alphabetical order.
 	# The required key/value for any request can be found here: 
 	# http://oauth.net/core/1.0/#anchor9
 	# Be sure to include the signature in this part of the request.
@@ -177,7 +177,6 @@ status_update() {
 	#verbose_output
 
 	# Step 9: Mail off your masterpiece.
-	# Using the magic
 	curl -s -H "$auth_header" --data-urlencode "status=$update_status" "$base_url" > /dev/null
 	echo "Tweet posted: $update_status"
 
@@ -213,6 +212,8 @@ request_request_token() {
 
 	parameterstring="oauth_callback=$oauth_callback&oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_version=$oauth_version"
 	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
+
+	# User doesnt have a token yet, but still needs a trailing "&"
 	signingkey="$(pe $oauth_consumer_secret)&" 
 	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
 
@@ -246,14 +247,15 @@ request_access_token() {
 
 	parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_verifier=$oauth_verifier&oauth_version=$oauth_version"
 	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
+
+	# Use the request token secret in place of the user's 
+	# token secret, because the user still doesn't have one.
 	signingkey="$(pe $oauth_consumer_secret)&$(pe $oauth_request_token_secret)" 
 	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
 
 	auth_header="Authorization: OAuth oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_token=\"$oauth_token\", oauth_verifier=\"$oauth_verifier\", oauth_version=\"$oauth_version\""
 
 	tokens=$(curl -s -H "$auth_header" --data-urlencode '' "$base_url")
-
-	echo "$tokens"
 
 	oauth_access_token=$(cut -d'&' -f1 <<< "$tokens")
 	oauth_access_token_secret=$(cut -d'&' -f2 <<< "$tokens")
