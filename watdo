@@ -15,7 +15,6 @@ oauth_version="1.0"
 # Variables with forced global scope
 oauth_nonce=""
 oauth_timestamp=""
-wrap=""
 
 # Here it is. OAuth can bite me. What a seriously dumb implementation. 
 # Protip: twitter will give you like infinity of these damn things for
@@ -44,14 +43,6 @@ main() {
 			-A | --authorize) # Gotta do this to post with watdo
 				authorize
 				exit 0
-				;;
-			-w | --wrap) # Multiple tweets if > 140 chars
-				wrap="true"
-				shift
-				;;
-			-n | --no-wrap) # Cut off tweet after 140 chars
-				wrap="false"
-				shift
 				;;
 			-V | --version) # Check the version
 				echo "$watdo_version"
@@ -87,9 +78,6 @@ watdo_help() {
 	echo ""
 	echo " -A, --authorize       force app/account reauthorization"
 	echo ""
-	echo " -w, --wrap            automatically split tweets over 140 characters"
-	echo " -n, --no-wrap         cut off tweet at 140 characters"
-	echo ""
 	echo " -V, --version         display the version and exit"
 	echo " -h, --help            display this help output and exit"
 	echo ""
@@ -120,9 +108,12 @@ status_update() {
 	# The status you typed after ./watdo. May not be relevant in all cases
 	update_status="$@"
 	
-	
+	if (( "${#update_status}" > "140" )); then
+		echo "Your status is too long: ${#update_status}/140 characters."
+		exit 1
+	fi	
 
-	# The 1.1 OAuth API URL to send statuses as POST data
+	# The Twitter API 1.1 OAuth API URL to send statuses as POST data
 	base_url="https://api.twitter.com/1.1/statuses/update.json"
 
 	# The rest of this function involved a lot of head scratching, 
@@ -301,6 +292,5 @@ verbose_output() {
 main "$@"
 
 # TODO:
-# * Count tweet length, split if > 140 chars ([S]plit [C]ancel)
 # * Parse urls in tweets and count them 20 characters.
 # * Retrieve tweets from newsfeed etc.
