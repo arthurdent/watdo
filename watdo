@@ -96,7 +96,7 @@ pe() {
 	regex="[^-_.~a-zA-Z0-9]"
 	while read -r -n1 ch; do
 		[[ $ch =~ $regex ]] && printf '%%%02X' "'$ch" || printf "$ch"
-	done <<< "${1}"
+	done <<< "$@"
 
 }
 
