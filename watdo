@@ -100,24 +100,41 @@ pe() {
 
 }
 
+# Refresh the nonce and timestamp
+oauth_refresh() {
+	
+	# Refresh the nonce
+	oauth_nonce="$(md5sum <<< \"$RANDOM-$(date +%s.%N)\" | cut -d' ' -f 1)"
+	
+	# Refresh the timestamp
+	oauth_timestamp="$(date +%s)"
+
+}
+
 # Read stuff on The Twitter
 home_timeline() {
 	
+	# Twitter API 1.1 OAuth API URL to retrieve home timeline
 	base_url="https://api.twitter.com/1.1/statuses/home_timeline.json"
 	
+	# Refresh the nonce
 	oauth_refresh
 	
 	parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_version=$oauth_version"
-
-	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
-	
+	basestring="GET&$(pe $base_url)&$(pe $parameterstring)"
 	signingkey="$(pe $oauth_consumer_secret)&$(pe $oauth_token_secret)"
-	
 	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
-
 	auth_header="Authorization: OAuth oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_token=\"$oauth_token\", oauth_version=\"$oauth_version\""
 	
-	curl -s -H "$auth_header" "$base_url" # > /dev/null
+	verbose_debug
+	
+	render_timeline $(curl -s -H "$auth_header" -G "$base_url") # > /dev/null
+
+}
+
+render_timeline() {
+
+	echo $@
 
 }
 
@@ -184,25 +201,13 @@ status_update() {
 	# because chances are, if you made a single mistake, you probably made five.
 
 	# Debug output. Display your shortcomings for all to see.
-	#verbose_output
-
+	verbose_debug
+	
 	# Step 9: Mail off your masterpiece.
 	curl -s -H "$auth_header" --data-urlencode "status=$update_status" "$base_url" > /dev/null
-	echo "Tweet posted: $update_status"
 
 	#TODO: ERROR CHECKING: {"errors":[{"code":89,"message":"Invalid or expired token."}]}
-
-}
-
-
-# Refresh the nonce and timestamp
-oauth_refresh() {
-	
-	# Refresh the nonce
-	oauth_nonce="$(md5sum <<< \"$RANDOM-$(date +%s.%N)\" | cut -d' ' -f 1)"
-	
-	# Refresh the timestamp
-	oauth_timestamp="$(date +%s)"
+	echo "Tweet posted: $update_status"
 
 }
 
@@ -244,6 +249,8 @@ authorize() {
 	echo -n "PIN : "
 	read pin
 
+	verbose_debug
+
 	request_access_token "$pin" "${oauth_request_token#*=}" "${oauth_request_token_secret#*=}"
 
 }
@@ -274,6 +281,8 @@ request_access_token() {
 	oauth_token_secret=$(cut -d'&' -f2 <<< "$tokens")
 	oauth_user_id=$(cut -d'&' -f3 <<< "$tokens")
 	oauth_screen_name=$(cut -d'&' -f4 <<< "$tokens")
+
+	verbose_debug
 
 	write_config "${oauth_token#*=}" "${oauth_token_secret#*=}" "${oauth_user_id#*=}" "${oauth_screen_name#*=}"
 
