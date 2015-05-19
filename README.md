@@ -34,5 +34,6 @@ I hate dependencies more than I hate bash. Also writing a real JSON parser in ba
 todo:
 -----
 
+* Parse urls in submitted tweets and count them as 20 chars.
 * Display newsfeeds.
 	* Finish JSON parser
