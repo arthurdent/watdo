@@ -260,7 +260,7 @@ request_access_token() {
 	oauth_user_id=$(cut -d'&' -f3 <<< "$tokens")
 	oauth_screen_name=$(cut -d'&' -f4 <<< "$tokens")
 
-	write_config "${oauth_token#*=}" "${oauth_token_secret#*=}" "${oauth_user_id#*=}" "${oauth_screen_name#*=}"
+	write_config "${oauth_access_token#*=}" "${oauth_access_token_secret#*=}" "${oauth_user_id#*=}" "${oauth_screen_name#*=}"
 
 }
 
