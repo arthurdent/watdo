@@ -253,7 +253,6 @@ request_access_token() {
 	auth_header="Authorization: OAuth oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_token=\"$oauth_token\", oauth_verifier=\"$oauth_verifier\", oauth_version=\"$oauth_version\""
 
 	tokens=$(curl -s -H "$auth_header" --data-urlencode '' "$base_url")
-	echo $tokens
 
 	oauth_access_token=$(cut -d'&' -f1 <<< "$tokens")
 	oauth_access_token_secret=$(cut -d'&' -f2 <<< "$tokens")
