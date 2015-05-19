@@ -324,7 +324,3 @@ verbose_debug() {
 
 # do the thing
 main "$@"
-
-# TODO:
-# * Parse urls in tweets and count them 20 characters.
-# * Retrieve tweets from newsfeed etc.
