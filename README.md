@@ -1,14 +1,12 @@
 watdo
 =====
 
-This thing still needs a lot of work. It doesn't read your news feed yet, but it allows you to tweet from the console. It's a complete WIP. Consider it pre-alpha.
-
-Dependencies: curl, perl, cut, openssl, base64
+Dependencies: bash, curl, coreutils/busybox, openssl
 
 watdo?
 ------
 
-1. Tweet
+1. Tweet from the console.
 
 howdo?
 ------
@@ -24,14 +22,17 @@ See also:
 wheredo?
 --------
 
-Put it in /usr/bin or add it to your $PATH in ~/.bashrc, or just run it from a directory, it'll work from anywhere.
+Anywhere:
+
+Run as `./watdo`, copy `watdo` to /usr/bin, or add it to `$PATH`.
 
 whydo?
 ------
 
-I'm a terminal monkey and all of the other cli twitter clients are kludgey and hard to navigate. This one aspires to suck less than the others.
+I hate dependencies more than I hate bash. Also writing a real JSON parser in bash is funny.
 
-todo
+todo:
 -----
 
-* Display newsfeed.
+* Display newsfeeds.
+	* Finish JSON parser
