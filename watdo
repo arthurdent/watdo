@@ -173,7 +173,7 @@ status_update() {
 	parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_version=$oauth_version&status=$(pe $update_status)"
 
 	# Step 4
-	# The base string is POST&<URL>&<perameter string>
+	# The base string is POST&<URL>&<parameter string>
 	# The URL and parameter string must be URL encoded
 	# (replace non [[:alphanum:]] with %encoded value
 	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
