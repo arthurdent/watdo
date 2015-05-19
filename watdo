@@ -52,6 +52,10 @@ main() {
 				echo "$watdo_version"
 				exit 0
 				;;
+			-t | --timeline) # get timeline
+				home_timeline
+				exit 0
+				;;
 			-*) # Unknown flag
 				echo "Unknown option: \"$1\"" >&2
 				exit 1
@@ -96,14 +100,24 @@ pe() {
 
 }
 
-# Authorize watdo so you can use it to tweet.
-authorize() {
+# Read stuff on The Twitter
+home_timeline() {
+	
+	base_url="https://api.twitter.com/1.1/statuses/home_timeline.json"
+	
+	oauth_refresh
+	
+	parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_version=$oauth_version"
 
-	if [[ ! -e "$HOME/.config/watdo" ]] || [[ "$noconf" == "true" ]] ; then
-		request_request_token
-	else
-		echo "Please move or delete \"$HOME/.config/watdo\" if you really want to reauthorize this application."
-	fi
+	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
+	
+	signingkey="$(pe $oauth_consumer_secret)&$(pe $oauth_token_secret)"
+	
+	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
+
+	auth_header="Authorization: OAuth oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_token=\"$oauth_token\", oauth_version=\"$oauth_version\""
+	
+	curl -s -H "$auth_header" "$base_url" # > /dev/null
 
 }
 
@@ -173,8 +187,10 @@ status_update() {
 	#verbose_output
 
 	# Step 9: Mail off your masterpiece.
-	curl -s -H "$auth_header" --data-urlencode "status=$update_status" "$base_url" # > /dev/null
+	curl -s -H "$auth_header" --data-urlencode "status=$update_status" "$base_url" > /dev/null
 	echo "Tweet posted: $update_status"
+
+	#TODO: ERROR CHECKING: {"errors":[{"code":89,"message":"Invalid or expired token."}]}
 
 }
 
@@ -192,7 +208,7 @@ oauth_refresh() {
 
 
 # Request a request token. This is the first step in tweeting from watdo.
-request_request_token() {
+authorize() {
 
 	# When I wrote this, only God and I understood what I was doing. 
 	# Now, only God knows.
