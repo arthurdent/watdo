@@ -3,29 +3,26 @@
 
 # Please report bugs here: https://github.com/arthurdent/watdo
 
-# Dependencies: curl, perl, cut, openssl, base64
+# Dependencies: curl, cut, openssl, base64
 
 [[ -e "$HOME/.config/watdo" ]] && source "$HOME/.config/watdo"
 
 # Final variables
-watdo_version="Watdo 0.1.1a"
+watdo_version="Watdo 0.1b"
 oauth_signature_method="HMAC-SHA1"
 oauth_version="1.0"
+
+verbose="off"
 
 # Variables with forced global scope
 oauth_nonce=""
 oauth_timestamp=""
 
-# Here it is. OAuth can bite me. What a seriously dumb implementation. 
-# Protip: twitter will give you like infinity of these damn things for
-# free so if you want to spam or something then get your own.
-# If you use this one to spam, it will ban this key from legitimate use,
-# making my users sad and confused.
-# User: If you find yourself sad and confused, consider generating your own
+# User: If this secret key is disabled, consider generating your own
 # OAuth Consumer Key & Secret by applying to http://dev.twitter.com
 # You will then need to reauthorize watdo
-oauth_consumer_key="f0SI6q2G4qFnEDS1o5kjGw"
-oauth_consumer_secret="PkWaVAkqzlbE2bbIfkl8Zbmyh6alvwekF77snqgZI"
+oauth_consumer_key="x06m5P9iK9w5Grzkf5t95kP3M"
+oauth_consumer_secret="Am4DZmZ5dUc7qSEiPKwaRbBvXvlrJSvnEQk3Or81HYyGQ5VXpK"
 
 # do the thing
 main() {
@@ -44,12 +41,15 @@ main() {
 				authorize
 				exit 0
 				;;
-			-V | --version) # Check the version
-				echo "$watdo_version"
-				exit 0
-				;;
 			-h | --help | -\?) # Help info
 				watdo_help
+				exit 0
+				;;
+			-v | --verbose) # increase verbosity
+				verbose="on"
+				;;
+			-V | --version) # Check the version
+				echo "$watdo_version"
 				exit 0
 				;;
 			-*) # Unknown flag
@@ -77,6 +77,7 @@ watdo_help() {
 	echo "Tweet while you hack."
 	echo ""
 	echo " -A, --authorize       force app/account reauthorization"
+	echo " -v, --verbose         verbose output, for debugging"
 	echo ""
 	echo " -V, --version         display the version and exit"
 	echo " -h, --help            display this help output and exit"
@@ -85,21 +86,25 @@ watdo_help() {
 	echo "Report bugs on Github: https://github.com/arthurdent/watdo"
 }
 
-# Refresh the nonce and timestamp
-oauth_refresh() {
-	
-	# Refresh the nonce
-	oauth_nonce="$(md5sum <<< \"$RANDOM-$(date +%s.%N)\" | cut -d' ' -f 1)"
-	
-	# Refresh the timestamp
-	oauth_timestamp="$(date +%s)"
+# Convert non :alphanum: with hex values preceded by % (like URLs)
+pe() {
+
+	regex="[^-_.~a-zA-Z0-9]"
+	while read -r -n1 ch; do
+		[[ $ch =~ $regex ]] && printf '%%%02X' "'$ch" || printf "$ch"
+	done <<< "${1}"
 
 }
 
-# Convert non :alphanum: with hex values preceded by % (like URLs)
-# I wonder how hard it would be to do this using only bash built-ins.
-pe() {
-	echo -n "$@" | perl -p -e 's/([^A-Za-z0-9-._~])/sprintf("%%%02X", ord($1))/seg'
+# Authorize watdo so you can use it to tweet.
+authorize() {
+
+	if [[ ! -e "$HOME/.config/watdo" ]] || [[ "$noconf" == "true" ]] ; then
+		request_request_token
+	else
+		echo "Please move or delete \"$HOME/.config/watdo\" if you really want to reauthorize this application."
+	fi
+
 }
 
 # Put stuff on The Twitter
@@ -168,26 +173,27 @@ status_update() {
 	#verbose_output
 
 	# Step 9: Mail off your masterpiece.
-	curl -s -H "$auth_header" --data-urlencode "status=$update_status" "$base_url" > /dev/null
+	curl -s -H "$auth_header" --data-urlencode "status=$update_status" "$base_url" # > /dev/null
 	echo "Tweet posted: $update_status"
 
 }
 
-# Authorize watdo so you can use it to tweet.
-authorize() {
 
-	if [[ ! -e "$HOME/.config/watdo" ]] || [[ "$noconf" == "true" ]] ; then
-		request_request_token
-	else
-		echo "Please move or delete \"$HOME/.config/watdo\" if you really want to reauthorize this application."
-	fi
+# Refresh the nonce and timestamp
+oauth_refresh() {
+	
+	# Refresh the nonce
+	oauth_nonce="$(md5sum <<< \"$RANDOM-$(date +%s.%N)\" | cut -d' ' -f 1)"
+	
+	# Refresh the timestamp
+	oauth_timestamp="$(date +%s)"
 
 }
+
 
 # Request a request token. This is the first step in tweeting from watdo.
 request_request_token() {
 
-	# This is the quote that accurately somes up this project:
 	# When I wrote this, only God and I understood what I was doing. 
 	# Now, only God knows.
 	# - Karl Weierstrass
@@ -247,6 +253,7 @@ request_access_token() {
 	auth_header="Authorization: OAuth oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_token=\"$oauth_token\", oauth_verifier=\"$oauth_verifier\", oauth_version=\"$oauth_version\""
 
 	tokens=$(curl -s -H "$auth_header" --data-urlencode '' "$base_url")
+	echo $tokens
 
 	oauth_access_token=$(cut -d'&' -f1 <<< "$tokens")
 	oauth_access_token_secret=$(cut -d'&' -f2 <<< "$tokens")
@@ -267,25 +274,28 @@ write_config() {
 }
 
 # This provides verbose output (also increments i by 1).
-verbose_output() {
-	echo "oauth_consumer_key     : $oauth_consumer_key"
-	echo "oauth_nonce            : $oauth_nonce"
-	echo "oauth_signature        : $oauth_signature"
-	echo "oauth_signature_method : $oauth_signature_method"
-	echo "oauth_timestamp        : $oauth_timestamp"
-	echo "oauth_token            : $oauth_token"
-	echo "oauth_version          : $oauth_version"
-	echo "---"
-	echo "oauth_token_secret     : $oauth_token_secret"
-	echo "status                 : $update_status"
-	echo "base_url               : $base_url"
-	echo "---"
-	echo "paramstring            : $parameterstring"
-	echo "basestring             : $basestring"
-	echo "signingkey             : $signingkey"
-	echo "oauth_sign             : $oauth_signature"
-	echo "auth_header            : $auth_header"
-	echo ""
+verbose_debug() {
+
+	if [[ $verbose = "on" ]]; then
+		echo "oauth_consumer_key     : $oauth_consumer_key"
+		echo "oauth_nonce            : $oauth_nonce"
+		echo "oauth_signature        : $oauth_signature"
+		echo "oauth_signature_method : $oauth_signature_method"
+		echo "oauth_timestamp        : $oauth_timestamp"
+		echo "oauth_token            : $oauth_token"
+		echo "oauth_version          : $oauth_version"
+		echo "---"
+		echo "oauth_token_secret     : $oauth_token_secret"
+		echo "status                 : $update_status"
+		echo "base_url               : $base_url"
+		echo "---"
+		echo "paramstring            : $parameterstring"
+		echo "basestring             : $basestring"
+		echo "signingkey             : $signingkey"
+		echo "oauth_sign             : $oauth_signature"
+		echo "auth_header            : $auth_header"
+		echo ""
+	fi
 }
 
 # do the thing
