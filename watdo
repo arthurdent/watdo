@@ -19,7 +19,7 @@ oauth_nonce=""
 oauth_timestamp=""
 
 # User: If this secret key is disabled, consider generating your own
-# OAuth Consumer Key & Secret by applying to http://dev.twitter.com
+# OAuth Consumer Key & Secret by applying for one at http://dev.twitter.com
 # You will then need to reauthorize watdo
 oauth_consumer_key="x06m5P9iK9w5Grzkf5t95kP3M"
 oauth_consumer_secret="Am4DZmZ5dUc7qSEiPKwaRbBvXvlrJSvnEQk3Or81HYyGQ5VXpK"
@@ -90,7 +90,7 @@ watdo_help() {
 	echo "Report bugs on Github: https://github.com/arthurdent/watdo"
 }
 
-# Convert non :alphanum: with hex values preceded by % (like URLs)
+# Encode most non [:alphanum:] chars as %[two-digit hex value]
 pe() {
 
 	regex="[^-_.~a-zA-Z0-9]"
@@ -100,7 +100,7 @@ pe() {
 
 }
 
-# Refresh the nonce and timestamp
+# Refresh Nonce and Timestamp
 oauth_refresh() {
 	
 	# Refresh the nonce
@@ -118,7 +118,6 @@ home_timeline() {
 	base_url="https://api.twitter.com/1.1/statuses/home_timeline.json"
 	
 	oauth_refresh
-
 		parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_version=$oauth_version"
 	basestring="GET&$(pe $base_url)&$(pe $parameterstring)"
 	signingkey="$(pe $oauth_consumer_secret)&$(pe $oauth_token_secret)"
@@ -131,6 +130,7 @@ home_timeline() {
 
 }
 
+# Apply JSON Parsing and write to screen.
 render_timeline() {
 
 	echo $@
