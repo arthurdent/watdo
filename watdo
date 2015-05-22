@@ -117,10 +117,9 @@ home_timeline() {
 	# Twitter API 1.1 OAuth API URL to retrieve home timeline
 	base_url="https://api.twitter.com/1.1/statuses/home_timeline.json"
 	
-	# Refresh the nonce
 	oauth_refresh
-	
-	parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_version=$oauth_version"
+
+		parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_version=$oauth_version"
 	basestring="GET&$(pe $base_url)&$(pe $parameterstring)"
 	signingkey="$(pe $oauth_consumer_secret)&$(pe $oauth_token_secret)"
 	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
@@ -152,38 +151,37 @@ status_update() {
 	# The Twitter API 1.1 OAuth API URL to send statuses as POST data
 	base_url="https://api.twitter.com/1.1/statuses/update.json"
 
-	# The rest of this function involved a lot of head scratching, 
-	# yelling at documentation, acetylsalicylic acid and caffiene ingestion.
+	# When I originally wrote watdo, Twitter had terrible OAuth documentation
+	# and no example OAuth tool. Since then, this process has become more clear.
+	# Nonetheless, if you are having trouble assembling your OAuth strings,
+	# here is a detailed explanation of twitter OAuth.
 
-	# In an attempt to save you from the same fate,
-	# I have attempted a detailed explanation of OAuth
-
-	# Step 1 & 2.
-	# Refresh the timestamp, and the nonce.
-	# The nonce must be different every time you make a connection through OAuth.
-	# The easiest way to make a nonce is to append a random string to the date,
-	# and hash the result with md5. A simple feature to prevent replay attacks.
+	# Step 1 & 2: Timestamp and Nonce
 	# The timestamp must be in unix epoch format. (date +%s)
+	# The nonce should be different each time you make a connection.
+	# For best results, only include alpha-numeric characters.
+	# An easy way to make a nonce is to append a random string to the date,
+	# and hash the result with md5. A simple feature to prevent replay attacks.
 	oauth_refresh
 
-	# Step 3
+	# Step 3: Parameter String
 	# The parameter string is all of the parameters that make up your OAuth Signature. 
-	# you must supply this without quotes, separated by ampersands (&), alphabetical order.
+	# you must supply this without quotes, separated by ampersands (&), in alphabetical order.
 	# The parameters are those required to make the OAuth request, minus the signature itself.
 	parameterstring="oauth_consumer_key=$oauth_consumer_key&oauth_nonce=$oauth_nonce&oauth_signature_method=$oauth_signature_method&oauth_timestamp=$oauth_timestamp&oauth_token=$oauth_token&oauth_version=$oauth_version&status=$(pe $update_status)"
 
-	# Step 4
+	# Step 4: Base String
 	# The base string is POST&<URL>&<parameter string>
+	# Don't forget to change this to GET, if you are making a GET request.
 	# The URL and parameter string must be URL encoded
-	# (replace non [[:alphanum:]] with %encoded value
 	basestring="POST&$(pe $base_url)&$(pe $parameterstring)"
 
-	# Step 5
-	# The signing key is the apps (not users) consumer secret,
-	# and the OAuth token secret, which does belong to the user.
+	# Step 5: Signing Key
+	# The Consumer Secret belongs to the app.
+	# The Token Secret belongs to the user.
 	signingkey="$(pe $oauth_consumer_secret)&$(pe $oauth_token_secret)"
 
-	# Step 6: 
+	# Step 6: OAuth Signature
 	# Now sha1 the base string using the signing key and base64 the result.
 	oauth_signature="$(echo -n "$basestring" | openssl dgst -sha1 -binary -hmac "$signingkey" | base64)"
 
@@ -196,14 +194,17 @@ status_update() {
 	# Be sure to include the signature in this part of the request.
 	auth_header="Authorization: OAuth oauth_consumer_key=\"$oauth_consumer_key\", oauth_nonce=\"$oauth_nonce\", oauth_signature=\"$(pe $oauth_signature)\", oauth_signature_method=\"$oauth_signature_method\", oauth_timestamp=\"$oauth_timestamp\", oauth_token=\"$oauth_token\", oauth_version=\"$oauth_version\""
 
-	# Step 8: Pray.
+	# Step 8: Invoke Deity
 	# Pray that you did every single one of those things correctly,
-	# because chances are, if you made a single mistake, you probably made five.
+	# because doing OAuth for the first time is a lot like flinging 
+	# all of the ingredients for cookies into the air and 
+	# hoping they all land in the bowl, properly mixed.
 
 	# Debug output. Display your shortcomings for all to see.
 	verbose_debug
 	
-	# Step 9: Mail off your masterpiece.
+	# Step 9
+   	# Mail off this masterpiece.
 	curl -s -H "$auth_header" --data-urlencode "status=$update_status" "$base_url" > /dev/null
 
 	#TODO: ERROR CHECKING: {"errors":[{"code":89,"message":"Invalid or expired token."}]}
